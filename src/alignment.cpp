@@ -10,12 +10,6 @@
 
 #include "rapidcsv.h"
 
-enum Traversal {
-  LEFT_RIGHT = 0,
-  UP_DOWN = 1,
-  DIAGONAL = 2,
-};
-
 using DP_TABLE = std::vector<std::vector<long>>;
 using PENALTY_MAP = std::map<std::tuple<char,char>, long>;
 
