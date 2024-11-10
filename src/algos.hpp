@@ -1,3 +1,6 @@
+#ifndef ALGOS_HPP
+#define ALGOS_HPP
+
 #include <vector>
 #include <map>
 
@@ -8,4 +11,7 @@ enum Traversal {
   LEFT_RIGHT = 0,
   UP_DOWN = 1,
   DIAGONAL = 2,
+  BLOCK_BASED = 3,
 };
+
+#endif

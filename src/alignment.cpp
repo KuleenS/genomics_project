@@ -7,6 +7,7 @@
 #include <tuple>
 
 #include "algos.hpp"
+#include "block_based_alignment.hpp"
 
 #include "rapidcsv.h"
 
@@ -29,7 +30,7 @@ void affine_dp_step(DP_TABLE& V, DP_TABLE& G, DP_TABLE& E, DP_TABLE& F, PENALTY_
 }
 
 
-void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penalty, long gap_open, long gap_extension){
+void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penalty, long gap_open, long gap_extension, int block_size){
     long length_x = x.length();
 
     long length_y = y.length();
@@ -56,41 +57,55 @@ void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penal
         F[0][i] = -gap_open - i * gap_extension;
     }
 
-    switch (iterating_mode){
-        case LEFT_RIGHT:
+    if (block_size > 0) {
+        int internal_iterating_mode = iterating_mode % 10;
+        int block_iterating_mode = iterating_mode / 10;
 
-            for (int i = 1; i < x.length()+1; i++){
-                for (int j = 1; j < y.length()+1; j++){
-                    affine_dp_step(V,G,E,F,penalty, x[i],y[j], i,j, gap_open, gap_extension);
-                }
-            }
+        BlockBasedIterator iter(x.length(), y.length(), block_size, internal_iterating_mode, block_iterating_mode);
 
-            break;
-        case UP_DOWN:
-            for (int j = 1; j < y.length()+1; j++){
+        for (; iter.has_more(); ++iter) {
+            int i = std::get<0>(iter.get_location());
+            int j = std::get<1>(iter.get_location());
+
+            affine_dp_step(V,G,E,F,penalty, x[i+1],y[j+1], i+1,j+1, gap_open, gap_extension);
+        }
+    } else {
+        switch (iterating_mode){
+            case LEFT_RIGHT:
+
                 for (int i = 1; i < x.length()+1; i++){
-                    affine_dp_step(V,G,E,F,penalty, x[i],y[j], i,j, gap_open, gap_extension);
-                }
-            }
-
-            break;
-        case DIAGONAL:
-            for( int k = 0 ; k <= y.length()+1 + x.length()+1 - 2; k++ ) {
-                for( int j = 0 ; j <= k ; j++ ) {
-                    int i = k - j;
-                    if( i < x.length()+1 && j < y.length()+1  && i != 0 && j != 0) {
+                    for (int j = 1; j < y.length()+1; j++){
                         affine_dp_step(V,G,E,F,penalty, x[i],y[j], i,j, gap_open, gap_extension);
                     }
                 }
-            }
-            break;
+
+                break;
+            case UP_DOWN:
+                for (int j = 1; j < y.length()+1; j++){
+                    for (int i = 1; i < x.length()+1; i++){
+                        affine_dp_step(V,G,E,F,penalty, x[i],y[j], i,j, gap_open, gap_extension);
+                    }
+                }
+
+                break;
+            case DIAGONAL:
+                for( int k = 0 ; k <= y.length()+1 + x.length()+1 - 2; k++ ) {
+                    for( int j = 0 ; j <= k ; j++ ) {
+                        int i = k - j;
+                        if( i < x.length()+1 && j < y.length()+1  && i != 0 && j != 0) {
+                            affine_dp_step(V,G,E,F,penalty, x[i],y[j], i,j, gap_open, gap_extension);
+                        }
+                    }
+                }
+                break;
+        }
     }
 
     std::cout << V[x.length()][y.length()] << std::endl;
 }
 
 
-void global_local(std::string x, std::string y, int iterating_mode, bool global, PENALTY_MAP& penalty){
+void global_local(std::string x, std::string y, int iterating_mode, bool global, PENALTY_MAP& penalty, int block_size){
     long (*dp_step)(DP_TABLE&, char, char, int, int, PENALTY_MAP&);
 
     if (!global){ 
@@ -125,38 +140,30 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
 
     long best_item = 0;
 
-    switch (iterating_mode){
-        case LEFT_RIGHT:
+    if (block_size > 0) {
+        int internal_iterating_mode = iterating_mode % 10;
+        int block_iterating_mode = iterating_mode / 10;
 
-            for (int i = 1; i < x.length()+1; i++){
-                for (int j = 1; j < y.length()+1; j++){
-                    dp[i][j] = dp_step(dp, x[i-1],y[j-1], i,j, penalty);
+        BlockBasedIterator iter(x.length(), y.length(), block_size, internal_iterating_mode, block_iterating_mode);
 
-                    if (!global){
-                        best_item = std::max(best_item, dp[i][j]);
-                    }
-                }
+        for (; iter.has_more(); ++iter) {
+            
+            int i = std::get<0>(iter.get_location());
+            int j = std::get<1>(iter.get_location());
+
+            dp[i+1][j+1] = dp_step(dp, x[i], y[j], i+1, j+1, penalty);
+
+            if (!global) {
+                best_item = std::max(best_item, dp[i+1][j+1]);
             }
+        }
+    } else {
 
-            break;
-        case UP_DOWN:
-            for (int j = 1; j < y.length()+1; j++){
+        switch (iterating_mode){
+            case LEFT_RIGHT:
+
                 for (int i = 1; i < x.length()+1; i++){
-                    dp[i][j] = dp_step(dp, x[i-1],y[j-1], i,j, penalty);
-
-                    if (!global){
-                        best_item = std::max(best_item, dp[i][j]);
-                    }
-                }
-            }
-
-            break;
-        case DIAGONAL:
-            for( int k = 0 ; k <= y.length()+1 + x.length()+1 - 2; k++ ) {
-                for( int j = 0 ; j <= k ; j++ ) {
-                    int i = k - j;
-                    if( i < x.length()+1 && j < y.length()+1  && i != 0 && j != 0) {
-
+                    for (int j = 1; j < y.length()+1; j++){
                         dp[i][j] = dp_step(dp, x[i-1],y[j-1], i,j, penalty);
 
                         if (!global){
@@ -164,8 +171,36 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
                         }
                     }
                 }
-            }
-            break;
+
+                break;
+            case UP_DOWN:
+                for (int j = 1; j < y.length()+1; j++){
+                    for (int i = 1; i < x.length()+1; i++){
+                        dp[i][j] = dp_step(dp, x[i-1],y[j-1], i,j, penalty);
+
+                        if (!global){
+                            best_item = std::max(best_item, dp[i][j]);
+                        }
+                    }
+                }
+
+                break;
+            case DIAGONAL:
+                for( int k = 0 ; k <= y.length()+1 + x.length()+1 - 2; k++ ) {
+                    for( int j = 0 ; j <= k ; j++ ) {
+                        int i = k - j;
+                        if( i < x.length()+1 && j < y.length()+1  && i != 0 && j != 0) {
+
+                            dp[i][j] = dp_step(dp, x[i-1],y[j-1], i,j, penalty);
+
+                            if (!global){
+                                best_item = std::max(best_item, dp[i][j]);
+                            }
+                        }
+                    }
+                }
+                break;
+        }
     }
 
     if (!global){
@@ -229,7 +264,59 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
-    rapidcsv::Document doc(argv[4]);
+    int offset = 0;
+
+    int internal_iterating_mode = 0;
+    int block_iterating_mode = 0;
+    int block_size = 0;
+
+    if (iterating_mode == BLOCK_BASED) {
+
+        std::istringstream internal_iterating_mode_ss(argv[4]);
+
+        if (!(internal_iterating_mode_ss >> internal_iterating_mode)) {
+            std::cerr << "Invalid number: " << argv[4] << '\n';
+            return 1;
+        } else if (!internal_iterating_mode_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[4] << '\n';
+            return 1;
+        } else if (internal_iterating_mode == BLOCK_BASED) {
+            std::cerr << "Nested block-based iteration is not allowed! \n";
+            return 1;
+        }  
+
+        std::istringstream block_iterating_mode_ss(argv[5]);
+
+        if (!(block_iterating_mode_ss >> block_iterating_mode)) {
+            std::cerr << "Invalid number: " << argv[5] << '\n';
+            return 1;
+        } else if (!block_iterating_mode_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[5] << '\n';
+            return 1;
+        } else if (block_iterating_mode == BLOCK_BASED) {
+            std::cerr << "Nested block-based iteration is not allowed! \n";
+            return 1;
+        }
+
+        std::istringstream  block_size_ss(argv[6]);
+
+        if (!(block_size_ss >> block_size)) {
+            std::cerr << "Invalid number: " << argv[6] << '\n';
+            return 1;
+        } else if (!block_size_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[6] << '\n';
+            return 1;
+        } else if (block_size <= 0) {
+            std::cerr << "Block size must be positive, got: " << argv[6] << '\n';
+            return 1;
+        } 
+
+        iterating_mode = block_iterating_mode * 10 + internal_iterating_mode;
+        offset = 3;
+
+    }
+
+    rapidcsv::Document doc(argv[4+offset]);
 
     PENALTY_MAP penalty;
 
@@ -242,34 +329,34 @@ int main(int argc, char* argv[]){
     }
 
     if (global_local_affine == "affine"){
-        std::istringstream gap_open_ss(argv[5]);
+        std::istringstream gap_open_ss(argv[5+offset]);
 
         long gap_open;
 
         if (!(gap_open_ss >> gap_open)) {
-            std::cerr << "Invalid number: " << argv[5] << '\n';
+            std::cerr << "Invalid number: " << argv[5+offset] << '\n';
             return 1;
         } else if (!gap_open_ss.eof()) {
-            std::cerr << "Trailing characters after number: " << argv[5] << '\n';
+            std::cerr << "Trailing characters after number: " << argv[5+offset] << '\n';
             return 1;
         }
 
-        std::istringstream gap_extension_ss(argv[6]);
+        std::istringstream gap_extension_ss(argv[6+offset]);
 
         long gap_extension;
 
         if (!(gap_extension_ss >> gap_extension)) {
-            std::cerr << "Invalid number: " << argv[6] << '\n';
+            std::cerr << "Invalid number: " << argv[6+offset] << '\n';
             return 1;
         } else if (!gap_extension_ss.eof()) {
-            std::cerr << "Trailing characters after number: " << argv[6] << '\n';
+            std::cerr << "Trailing characters after number: " << argv[6+offset] << '\n';
             return 1;
         }
 
-        affine(x,y,iterating_mode, penalty,gap_open, gap_extension);
+        affine(x,y,iterating_mode, penalty,gap_open, gap_extension, block_size);
 
     } else{
-        global_local(x,y,iterating_mode,global_local_affine == "global", penalty);
+        global_local(x,y,iterating_mode,global_local_affine == "global", penalty, block_size);
     }
 
     return 0;

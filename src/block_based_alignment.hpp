@@ -1,4 +1,6 @@
-#include <iterator>
+#ifndef BLOCK_BASED_ALIGNMENT_HPP
+#define BLOCK_BASED_ALIGNMENT_HPP
+
 #include <tuple>
 
 class BlockBasedIterator {
@@ -31,3 +33,5 @@ class BlockBasedIterator {
         bool has_more();
         std::tuple<int, int> get_location();
 };
+
+#endif
