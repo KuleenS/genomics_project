@@ -21,3 +21,4 @@ set(Kokkos_ENABLE_CUDA OFF)
 add_subdirectory(external/kokkos)
 # Link Kokkos to your target
 target_link_libraries(hirschberg Kokkos::kokkos)
+target_link_libraries(alignment Kokkos::kokkos)

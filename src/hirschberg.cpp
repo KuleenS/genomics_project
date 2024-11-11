@@ -40,9 +40,6 @@ int NWScore(const std::string& X, const std::string& Y, PENALTY_MAP& penalty) {
 
         Kokkos::parallel_for("FillRow", m, KOKKOS_LAMBDA(int j) {
             int col = j + 1;
-            // std::cout << "(" << '-' << ", " << Y[col - 1] << ")" << std::endl;
-            // std::cout << "(" << X[i - 1] << ", " << "-" << ")" << std::endl;
-            // std::cout << "(" << X[i - 1] << ", " << Y[col - 1] << ")" << std::endl;
             Score(1, col) = std::max({
                 Score(1, col - 1) - penalty.at(std::make_tuple('-', Y[col - 1])),
                 Score(0, col) - penalty.at(std::make_tuple(X[i - 1], '-')),
