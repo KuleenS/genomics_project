@@ -135,7 +135,7 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
             });
             break;
         case UP_DOWN:
-            Kokkos::parallel_for("Global_Local_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_x+1, length_y+1}), KOKKOS_LAMBDA(int i, int j) {
+            Kokkos::parallel_for("Global_Local_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_y+1, length_x+1}), KOKKOS_LAMBDA(int j, int i) {
                 dp(i, j) = dp_step(dp, x[i-1], y[j-1], i, j, penalty);
                 if (!global) {
                     Kokkos::atomic_max(&best_item(), dp(i, j));
