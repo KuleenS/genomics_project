@@ -91,14 +91,19 @@ std::pair<std::string, std::string> NeedlemanWunsch(const std::string& X, const 
     Kokkos::fence();
 
     // Fill in the rest of the DP table in parallel row by row
-    for (int i = 1; i <= n; ++i) {
-        Kokkos::parallel_for("FillRow", m, KOKKOS_LAMBDA(int j) {
-            int col = j + 1;
-            Score(i, col) = std::max({
-                Score(i - 1, col - 1) + match_or_mismatch(X[i - 1], Y[col - 1]) * penalty.at(std::make_tuple(X[i - 1], Y[col - 1])),
-                Score(i, col - 1) - penalty.at(std::make_tuple('-', Y[col - 1])),
-                Score(i - 1, col) - penalty.at(std::make_tuple(X[i - 1], '-'))
-            });
+    for (int k = 0; k < n + m + 1; k++) {
+        int start_i = std::max(0, k - (int) m - 1);
+        int end_i = std::min((int) n + 1, k);
+
+        Kokkos::parallel_for("diagonal_loop", Kokkos::RangePolicy<>(start_i, end_i + 1), KOKKOS_LAMBDA(int i) {
+            int j = k - i;
+            if (j >= 1 && j <= m && i >=1 && i <= n) {
+                Score(i, j) = std::max({
+                    Score(i - 1, j - 1) + match_or_mismatch(X[i - 1], Y[j - 1]) * penalty.at(std::make_tuple(X[i - 1], Y[j - 1])),
+                    Score(i, j - 1) - penalty.at(std::make_tuple('-', Y[j - 1])),
+                    Score(i - 1, j) - penalty.at(std::make_tuple(X[i - 1], '-'))
+                });
+            }
         });
         Kokkos::fence();
     }
