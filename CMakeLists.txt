@@ -22,3 +22,4 @@ add_subdirectory(external/kokkos)
 # Link Kokkos to your target
 target_link_libraries(hirschberg Kokkos::kokkos)
 target_link_libraries(alignment Kokkos::kokkos)
+target_link_libraries(four_russians Kokkos::kokkos)
