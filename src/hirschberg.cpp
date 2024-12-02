@@ -3,10 +3,11 @@
 #include <iostream>
 #include <fstream> 
 #include <sstream>
+#include <Kokkos_Core.hpp>
 
 #include "rapidcsv.h"
 
-using DP_TABLE = std::vector<std::vector<long>>;
+using DP_TABLE = Kokkos::View<long**>;
 using PENALTY_MAP = std::map<std::tuple<char,char>, long>;
 
 //Evaluate if diagonal outcome of Needleman-Wunsch
@@ -15,199 +16,232 @@ long match_or_mismatch(char c1, char c2)
     return (c1 == c2) ? 1L : -1L;
 }
 
-std::vector<long> NWScore(const std::string& X, const std::string& Y, PENALTY_MAP& penalty)
-{
+int NWScore(const std::string& X, const std::string& Y, PENALTY_MAP& penalty) {
     const int n = X.length();
     const int m = Y.length();
 
-    DP_TABLE Score;
-    Score.resize(2, std::vector<long>(m+1, 0));
+    // Initialize Kokkos Views for the DP table
+    DP_TABLE Score("Score", 2, m + 1);
 
-    Score[0][0]=0;
-    
-    for (int j=1; j<=m; j++) {
-        Score[0][j] = Score[0][j-1] - penalty[std::make_tuple('-', Y[j-1])];
-    }
-   
-    for (int i=1; i<=n; i++) {
-        Score[1][0] = Score[0][0] - penalty[std::make_tuple(X[i-1], '-')];
-        for (int j=1; j<=m; j++) {
-            Score[1][j] = std::max({
-                               Score[1][j-1] - penalty[std::make_tuple('-', Y[j-1])],
-                               Score[0][j] - penalty[std::make_tuple(X[i-1], '-')],
-                               Score[0][j-1] + match_or_mismatch(X[i-1],Y[j-1])*penalty[std::make_tuple(X[i-1],Y[j-1])]
-                            });
+    // Set the initial values for the first row
+    Kokkos::parallel_for("InitializeFirstRow", m + 1, KOKKOS_LAMBDA(int j) {
+        if (j == 0) {
+            Score(0, j) = 0;
+        } else {
+            // std::cout << "(" << '-' << ", " << Y[j - 1] << ")" << std::endl;
+            Score(0, j) = Score(0, j - 1) - penalty.at(std::make_tuple('-', Y[j - 1]));
         }
-        Score[0] = Score[1];
+    });
+    Kokkos::fence();
+
+    // Fill in the DP table
+    for (int i = 1; i <= n; ++i) {
+        Score(1, 0) = Score(0, 0) - penalty.at(std::make_tuple(X[i - 1], '-'));
+
+        Kokkos::parallel_for("FillRow", m, KOKKOS_LAMBDA(int j) {
+            int col = j + 1;
+            Score(1, col) = std::max({
+                Score(1, col - 1) - penalty.at(std::make_tuple('-', Y[col - 1])),
+                Score(0, col) - penalty.at(std::make_tuple(X[i - 1], '-')),
+                Score(0, col - 1) + match_or_mismatch(X[i - 1], Y[col - 1]) * penalty.at(std::make_tuple(X[i - 1], Y[col - 1]))
+            });
+        });
+        Kokkos::fence();
+
+        // Swap rows for the next iteration
+        Kokkos::parallel_for("SwapRows", m + 1, KOKKOS_LAMBDA(int j) {
+            Score(0, j) = Score(1, j);
+        });
+        Kokkos::fence();
     }
-    
-    return Score[1];
-    
+
+    // Copy the final row into a host vector
+    Kokkos::View<long*> result("Result", m + 1);
+
+    // Copy the desired subview into the result view
+    Kokkos::deep_copy(result, Kokkos::subview(Score, 1, Kokkos::ALL));
+
+    // // Print out the result view
+    // Kokkos::parallel_for("PrintResult", m + 1, KOKKOS_LAMBDA(int i) {
+    //     printf("result[%d] = %ld\n", i, result(i));
+    // });
+
+    // Return the bottom-right value of the 2D view (assuming the dimensions of Score are (n, m))
+    int x = Score(Score.extent(0) - 1, Score.extent(1) - 1);
+    return x;
 }
 
 
 
-std::pair < std::string, std::string > NeedlemanWunsch (const std::string& X, const std::string& Y, PENALTY_MAP& penalty)
-{
-    int n = X.length(), m = Y.length();
+std::pair<std::string, std::string> NeedlemanWunsch(const std::string& X, const std::string& Y, PENALTY_MAP& penalty) {
+    const int n = X.length();
+    const int m = Y.length();
 
-    DP_TABLE Score;
+    // Initialize the Kokkos View for the DP table with dimensions (n+1) x (m+1)
+    DP_TABLE Score("Score", n + 1, m + 1);
 
-    Score.resize(n+1, std::vector<long>(m+1, 0));
-    //STEP 1: assign first row and column
-    Score[0][0] = 0;
-    for (int i=1;i<n+1;i++) {
-        Score[i][0] = Score[i-1][0] - penalty[std::make_tuple(X[i-1], '-')];
+    // Initialize first row and first column in parallel
+    Kokkos::parallel_for("InitFirstColumn", n + 1, KOKKOS_LAMBDA(int i) {
+        Score(i, 0) = (i == 0) ? 0 : Score(i - 1, 0) - penalty.at(std::make_tuple(X[i - 1], '-'));
+    });
+
+    Kokkos::parallel_for("InitFirstRow", m + 1, KOKKOS_LAMBDA(int j) {
+        Score(0, j) = (j == 0) ? 0 : Score(0, j - 1) - penalty.at(std::make_tuple('-', Y[j - 1]));
+    });
+    Kokkos::fence();
+
+    // Fill in the rest of the DP table in parallel row by row
+    for (int k = 0; k < n + m + 1; k++) {
+        int start_i = std::max(0, k - (int) m - 1);
+        int end_i = std::min((int) n + 1, k);
+
+        Kokkos::parallel_for("diagonal_loop", Kokkos::RangePolicy<>(start_i, end_i + 1), KOKKOS_LAMBDA(int i) {
+            int j = k - i;
+            if (j >= 1 && j <= m && i >=1 && i <= n) {
+                Score(i, j) = std::max({
+                    Score(i - 1, j - 1) + match_or_mismatch(X[i - 1], Y[j - 1]) * penalty.at(std::make_tuple(X[i - 1], Y[j - 1])),
+                    Score(i, j - 1) - penalty.at(std::make_tuple('-', Y[j - 1])),
+                    Score(i - 1, j) - penalty.at(std::make_tuple(X[i - 1], '-'))
+                });
+            }
+        });
+        Kokkos::fence();
     }
 
-    for (int j=1;j<m+1;j++) {
-        Score[0][j] = Score[0][j-1] - penalty[std::make_tuple('-', Y[j-1])];
-    }
-    
-    //STEP 2: Needelman-Wunsch
-    for (int i=1;i<n+1;i++) {
-        for (int j=1;j<m+1;j++) {
-            Score[i][j] = std::max({Score[i-1][j-1] + match_or_mismatch(X[i-1],Y[j-1])*penalty[std::make_tuple(X[i-1],Y[j-1])],
-                          Score[i][j-1] - penalty[std::make_tuple('-', Y[j-1])],
-                          Score[i-1][j] - penalty[std::make_tuple(X[i-1], '-')]});
-        }
-    }
-
-    
-    std::string A_1 = "";
-    std::string A_2 = "";
+    // Backtracking to determine the optimal alignment
+    std::string A_1, A_2;
     int i = n, j = m;
-    while (i>0 || j>0){
-        if (i>0 && j>0 && (Score[i][j] == Score[i-1][j-1] + match_or_mismatch(X[i-1],Y[j-1])*penalty[std::make_tuple(X[i-1],Y[j-1])])){
-            A_1 = X[i-1] + A_1;
-            A_2 = Y[j-1] + A_2;
-            i--;
-            j--;
-        } else if (i>0 && (Score[i][j] == Score[i-1][j] - penalty[std::make_tuple(X[i-1], '-')])){
-            A_1 = X[i-1] + A_1;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 &&
+            (Score(i, j) == Score(i - 1, j - 1) + match_or_mismatch(X[i - 1], Y[j - 1]) * penalty.at(std::make_tuple(X[i - 1], Y[j - 1])))) {
+            A_1 = X[i - 1] + A_1;
+            A_2 = Y[j - 1] + A_2;
+            --i;
+            --j;
+        } else if (i > 0 && (Score(i, j) == Score(i - 1, j) - penalty.at(std::make_tuple(X[i - 1], '-')))) {
+            A_1 = X[i - 1] + A_1;
             A_2 = '-' + A_2;
-            i--;
+            --i;
         } else {
             A_1 = '-' + A_1;
-            A_2 = Y[j-1] + A_2;
-            j--;
+            A_2 = Y[j - 1] + A_2;
+            --j;
         }
     }
-    
-    std::pair < std::string, std::string > alignment_pair;
-    alignment_pair.first = A_1;
-    alignment_pair.second = A_2;
-    return alignment_pair;
+
+    return {A_1, A_2};
 }
 
 
-std::tuple< std::string, std::string, PENALTY_MAP> Hirschberg(const std::string& X, const std::string& Y, PENALTY_MAP& penalty){
+// Hirschberg Function using Kokkos
+std::pair<std::string, std::string> Hirschberg(const std::string& X, const std::string& Y, PENALTY_MAP& penalty) {
     const int n = X.length();
     const int m = Y.length();
 
-    std::string Z,W;
-    
-    if (n==0){
-        for (int i=1; i<=m; i++){
+    std::string Z, W;
+
+    if (n == 0) {
+        for (int i = 0; i < m; ++i) {
             Z += '-';
-            W += Y[i-1];
+            W += Y[i];
         }
-    }
-    
-    else if (m==0){
-        for (int i=1; i<=n; i++){
-            Z += X[i-1];
+    } else if (m == 0) {
+        for (int i = 0; i < n; ++i) {
+            Z += X[i];
             W += '-';
         }
-    }
-    
-    else if (n==1 || m ==1){
-        std::pair< std::string, std::string> result = NeedlemanWunsch(X,Y, penalty);
-
+    } else if (n == 1 || m == 1) {
+        auto result = NeedlemanWunsch(X, Y, penalty);
         Z = result.first;
         W = result.second;
-    }
-    
-    else {
-        int xmid = n/2;
-        std::string X_to_xmid=X.substr(0,xmid),
-        
-        X_from_xmid = X.substr(xmid);
-
+    } else {
+        int xmid = n / 2;
+        std::string X_to_xmid = X.substr(0, xmid);
+        std::string X_from_xmid = X.substr(xmid);
         std::string X_from_xmid_rev(X_from_xmid.rbegin(), X_from_xmid.rend());
-
         std::string Y_rev(Y.rbegin(), Y.rend());
-        
-        std::vector<long> scoreL = NWScore(X_to_xmid,Y, penalty);
-        std::vector<long> scoreR = NWScore(X_from_xmid_rev,Y_rev, penalty);
-        
-        std::reverse(scoreR.begin(), scoreR.end());
 
-        std::transform(scoreL.begin(), scoreL.end(), scoreR.begin(), scoreL.begin(),std::plus<long>( ));
-        
-        int ymid = static_cast<int>(std::distance(scoreL.begin(), max_element(scoreL.begin(), scoreL.end())));
-        
-        std::string Y_to_ymid=Y.substr(0,ymid);
+        // Left and right scores
+        auto scoreL = NWScore(X_to_xmid, Y, penalty);
+        auto scoreR = NWScore(X_from_xmid_rev, Y_rev, penalty);
 
-        std::string Y_from_ymid=Y.substr(ymid);
-        
-        std::tuple<std::string, std::string, PENALTY_MAP> left = Hirschberg(X_to_xmid, Y_to_ymid, penalty);
-        
-        std::tuple<std::string, std::string, PENALTY_MAP> right = Hirschberg(X_from_xmid, Y_from_ymid, penalty);
+        Kokkos::View<long*> scoreR_host("scoreR_host", m + 1);
+        Kokkos::deep_copy(scoreR_host, scoreR);
+        std::reverse(scoreR_host.data(), scoreR_host.data() + m + 1);
 
-        Z = std::get<0>(left) + std::get<0>(right);
-        W = std::get<1>(left) + std::get<1>(right);   
+        Kokkos::View<long*> scoreL_host("scoreL_host", m + 1);
+        Kokkos::deep_copy(scoreL_host, scoreL);
+
+        std::vector<long> totalScores(m + 1);
+        for (int j = 0; j <= m; ++j) {
+            totalScores[j] = scoreL_host(j) + scoreR_host(j);
+        }
+
+        int ymid = std::distance(totalScores.begin(), std::max_element(totalScores.begin(), totalScores.end()));
+
+        std::string Y_to_ymid = Y.substr(0, ymid);
+        std::string Y_from_ymid = Y.substr(ymid);
+
+        auto left = Hirschberg(X_to_xmid, Y_to_ymid, penalty);
+        auto right = Hirschberg(X_from_xmid, Y_from_ymid, penalty);
+
+        Z = left.first + right.first;
+        W = left.second + right.second;
     }
-    
-    return std::make_tuple(Z,W,penalty);
+
+    return {Z, W};
 }
 
-int main(int argc, char* argv[]){
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << "<input_file> <penalty_function_csv>" << std::endl;
+int main(int argc, char* argv[]) {
+    Kokkos::initialize(argc, argv);
 
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << " <input_file> <penalty_function_csv>" << std::endl;
+        Kokkos::finalize();
         return 1;
     }
 
     std::ifstream input(argv[1]);
-
-    if (!input.is_open()){
-        std::cerr << "File " << argv[1] <<  " does not exist" << std::endl;
+    if (!input.is_open()) {
+        std::cerr << "File " << argv[1] << " does not exist" << std::endl;
+        Kokkos::finalize();
         return 1;
     }
 
-    std::string x,y; 
-
+    std::string x, y;
     std::getline(input, x);
     std::getline(input, y);
-
     input.close();
 
     rapidcsv::Document doc(argv[2]);
-
     PENALTY_MAP penalty;
-
     std::vector<char> firstchar = doc.GetColumn<char>(0);
     std::vector<char> secondchar = doc.GetColumn<char>(1);
     std::vector<long> penalty_number = doc.GetColumn<long>(2);
 
-    for (int i = 0; i < penalty_number.size(); ++i) {
+    for (size_t i = 0; i < penalty_number.size(); ++i) {
         penalty[std::make_tuple(firstchar[i], secondchar[i])] = penalty_number[i];
     }
-    
-    std::tuple<std::string, std::string, PENALTY_MAP> ZWpair = Hirschberg(x,y, penalty);
-    std::string Z = std::get<0>(ZWpair);
-    std::string W = std::get<1>(ZWpair);
 
+    // for (auto it = penalty.begin(); it != penalty.end(); ++it) {
+    //     std::cout << "(" << std::get<0>(it->first) << ", " << std::get<1>(it->first) << ") => " << it->second << std::endl;
+    // }
+
+
+    auto result = NWScore(x, y, penalty);
+
+    // Sum penalties based on the result
     long global_alignment_value = 0;
+    
+    // for (int i = 0; i < x.length(); ++i) {
+    //     std::cout << "(" << x[i] << ", " << y[i] << ")" << std::endl;
+    //     global_alignment_value += penalty.at(std::make_tuple(x[i], y[i]));
+    // }
 
-    for (int i = 0; i < Z.length(); ++i){
-        global_alignment_value += penalty[std::make_tuple(Z[i], W[i])];
-    }
+    global_alignment_value = result;
 
     std::cout << global_alignment_value << std::endl;
 
+    Kokkos::finalize();
     return 0;
 }
-
-
