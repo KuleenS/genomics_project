@@ -14,3 +14,13 @@ add_executable(four_russians src/four_russians.cpp ${FOUR_RUSSIANS})
 
 target_include_directories(alignment PRIVATE ${RAPIDCSV_INCLUDE_DIRS})
 target_include_directories(hirschberg PRIVATE ${RAPIDCSV_INCLUDE_DIRS})
+
+
+# Add the Kokkos submodule
+set(Kokkos_ENABLE_OPENMP ON)    
+set(Kokkos_ENABLE_CUDA OFF)      
+add_subdirectory(external/kokkos)
+# Link Kokkos to your target
+target_link_libraries(hirschberg Kokkos::kokkos)
+target_link_libraries(alignment Kokkos::kokkos)
+target_link_libraries(four_russians Kokkos::kokkos)
