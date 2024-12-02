@@ -8,15 +8,10 @@
 #include <Kokkos_Core.hpp>
 
 #include "algos.hpp"
+#include "block_based_alignment.hpp"
 
 #include "rapidcsv.h"
 
-
-enum Traversal {
-  LEFT_RIGHT = 0,
-  UP_DOWN = 1,
-  DIAGONAL = 2,
-};
 
 using DP_TABLE = Kokkos::View<long**>;
 using PENALTY_MAP = std::map<std::tuple<char,char>, long>;
@@ -36,7 +31,7 @@ void affine_dp_step(DP_TABLE V, DP_TABLE G, DP_TABLE E, DP_TABLE F, PENALTY_MAP 
 }
 
 
-void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penalty, long gap_open, long gap_extension){
+void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penalty, long gap_open, long gap_extension, int block_size){
     long length_x = x.length();
     long length_y = y.length();
 
@@ -55,32 +50,46 @@ void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penal
         F(0, j) = -gap_open - j * gap_extension;
     });
 
-    switch (iterating_mode){
-        case LEFT_RIGHT:
-            Kokkos::parallel_for("Affine_Left_Right", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_x+1, length_y+1}), KOKKOS_LAMBDA(int i, int j) {
-                // std::cout << i << ',' << j << '\n';
-                affine_dp_step(V, G, E, F, penalty, x[i-1], y[j-1], i, j, gap_open, gap_extension);
-            });
-            break;
-        case UP_DOWN:
-            Kokkos::parallel_for("Affine_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_x+1, length_y+1}), KOKKOS_LAMBDA(int i, int j) {
-                affine_dp_step(V, G, E, F, penalty, x[i-1], y[j-1], i, j, gap_open, gap_extension);
-            });
-            break;
-        case DIAGONAL:
-            for (int k = 0; k < length_x + length_y + 1; k++) {
-                int start_i = std::max(0, k - (int) length_y - 1);
-                int end_i = std::min((int) length_x + 1, k);
+    if (block_size > 0) {
+        int internal_iterating_mode = iterating_mode % 10;
+        int block_iterating_mode = iterating_mode / 10;
+
+        BlockBasedIterator iter(x.length(), y.length(), block_size, internal_iterating_mode, block_iterating_mode);
+
+        for (; iter.has_more(); ++iter) {
+            int i = std::get<0>(iter.get_location());
+            int j = std::get<1>(iter.get_location());
+
+            affine_dp_step(V,G,E,F,penalty, x[i+1],y[j+1], i+1,j+1, gap_open, gap_extension);
+        }
+    } else {
+        switch (iterating_mode){
+          case LEFT_RIGHT:
+              Kokkos::parallel_for("Affine_Left_Right", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {x.length()+1, y.length()+1}), KOKKOS_LAMBDA(int i, int j) {
+                  // std::cout << i << ',' << j << '\n';
+                  affine_dp_step(V, G, E, F, penalty, x[i-1], y[j-1], i, j, gap_open, gap_extension);
+              });
+              break;
+          case UP_DOWN:
+              Kokkos::parallel_for("Affine_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {y.length()+1, x.length()+1}), KOKKOS_LAMBDA(int j, int i) {
+                  affine_dp_step(V, G, E, F, penalty, x[i-1], y[j-1], i, j, gap_open, gap_extension);
+              });
+              break;
+          case DIAGONAL:
+             for (int k = 0; k < x.length() + y.length() + 1; k++) {
+                int start_i = std::max(0, k - (int) y.length() - 1);
+                int end_i = std::min((int) x.length() + 1, k);
 
                 Kokkos::parallel_for("diagonal_loop", Kokkos::RangePolicy<>(start_i, end_i + 1), KOKKOS_LAMBDA(int i) {
                     int j = k - i;
-                    if (j >= 1 && j <= length_y && i >=1 && i <= length_x) {  // Ensure i and j are within bounds for length_x and length_y   
+                    if (j >= 1 && j <= y.length() && i >=1 && i <= x.length()) {  // Ensure i and j are within bounds for length_x and length_y   
                         affine_dp_step(V, G, E, F, penalty, x[i - 1], y[j - 1], i, j, gap_open, gap_extension);
                     }
                 });
                 Kokkos::fence();  // Ensure all work in this diagonal is completed before moving to the next
             }
             break;
+        }
     }
     // for (int i = 0; i < length_x+1; ++i) {
     //     for (int j = 0; j < length_y+1; ++j) {
@@ -91,6 +100,7 @@ void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penal
 
     std::cout << V(length_x, length_y) << std::endl;
 }
+
 
 
 void global_local(std::string x, std::string y, int iterating_mode, bool global, PENALTY_MAP penalty){
@@ -125,9 +135,28 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
     Kokkos::View<long int> best_item("best_item");
     Kokkos::deep_copy(best_item, -1.0);
 
-    switch (iterating_mode) {
-        case LEFT_RIGHT:
-            Kokkos::parallel_for("Global_Local_Left_Right", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_x+1, length_y+1}), KOKKOS_LAMBDA(int i, int j) {
+    if (block_size > 0) {
+        int internal_iterating_mode = iterating_mode % 10;
+        int block_iterating_mode = iterating_mode / 10;
+
+        BlockBasedIterator iter(x.length(), y.length(), block_size, internal_iterating_mode, block_iterating_mode);
+
+        for (; iter.has_more(); ++iter) {
+            
+            int i = std::get<0>(iter.get_location());
+            int j = std::get<1>(iter.get_location());
+
+            dp[i+1][j+1] = dp_step(dp, x[i], y[j], i+1, j+1, penalty);
+
+            if (!global) {
+                best_item = std::max(best_item, dp[i+1][j+1]);
+            }
+        }
+    } else {
+
+        switch (iterating_mode){
+            case LEFT_RIGHT:
+            Kokkos::parallel_for("Global_Local_Left_Right", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {x.length()+1, y.length()+1}), KOKKOS_LAMBDA(int i, int j) {
                 dp(i, j) = dp_step(dp, x[i-1], y[j-1], i, j, penalty);
                 if (!global) {
                     Kokkos::atomic_max(&best_item(), dp(i, j));
@@ -135,7 +164,7 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
             });
             break;
         case UP_DOWN:
-            Kokkos::parallel_for("Global_Local_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {length_y+1, length_x+1}), KOKKOS_LAMBDA(int j, int i) {
+            Kokkos::parallel_for("Global_Local_Up_Down", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({1, 1}, {y.length()+1, x.length()+1}), KOKKOS_LAMBDA(int j, int i) {
                 dp(i, j) = dp_step(dp, x[i-1], y[j-1], i, j, penalty);
                 if (!global) {
                     Kokkos::atomic_max(&best_item(), dp(i, j));
@@ -143,9 +172,9 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
             });
             break;
         case DIAGONAL:
-            for (int k = 0; k < length_x + length_y + 1; k++) {
-                int start_i = std::max(0, k - (int) length_y - 1);
-                int end_i = std::min((int) length_x + 1, k);
+            for (int k = 0; k < x.length() + y.length() + 1; k++) {
+                int start_i = std::max(0, k - (int) y.length() - 1);
+                int end_i = std::min((int) x.length() + 1, k);
 
                 Kokkos::parallel_for("diagonal_loop", Kokkos::RangePolicy<>(start_i, end_i + 1), KOKKOS_LAMBDA(int i) {
                     int j = k - i;
@@ -160,6 +189,8 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
                 Kokkos::fence();  // Ensure all work in this diagonal is completed before moving to the next
             }
             break;
+        }
+
     }
     // for (int i = 0; i < length_x+1; ++i) {
     //     for (int j = 0; j < length_y+1; ++j) {
@@ -229,7 +260,63 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    rapidcsv::Document doc(argv[4]);
+
+
+    int offset = 0;
+
+    int internal_iterating_mode = 0;
+    int block_iterating_mode = 0;
+    int block_size = 0;
+
+    if (iterating_mode == BLOCK_BASED) {
+
+        std::istringstream internal_iterating_mode_ss(argv[4]);
+
+        if (!(internal_iterating_mode_ss >> internal_iterating_mode)) {
+            std::cerr << "Invalid number: " << argv[4] << '\n';
+            return 1;
+        } else if (!internal_iterating_mode_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[4] << '\n';
+            return 1;
+        } else if (internal_iterating_mode == BLOCK_BASED) {
+            std::cerr << "Nested block-based iteration is not allowed! \n";
+            return 1;
+        }  
+
+        std::istringstream block_iterating_mode_ss(argv[5]);
+
+        if (!(block_iterating_mode_ss >> block_iterating_mode)) {
+            std::cerr << "Invalid number: " << argv[5] << '\n';
+            return 1;
+        } else if (!block_iterating_mode_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[5] << '\n';
+            return 1;
+        } else if (block_iterating_mode == BLOCK_BASED) {
+            std::cerr << "Nested block-based iteration is not allowed! \n";
+            return 1;
+        }
+
+        std::istringstream  block_size_ss(argv[6]);
+
+        if (!(block_size_ss >> block_size)) {
+            std::cerr << "Invalid number: " << argv[6] << '\n';
+            return 1;
+        } else if (!block_size_ss.eof()) {
+            std::cerr << "Trailing characters after number: " << argv[6] << '\n';
+            return 1;
+        } else if (block_size <= 0) {
+            std::cerr << "Block size must be positive, got: " << argv[6] << '\n';
+            return 1;
+        } 
+
+        iterating_mode = block_iterating_mode * 10 + internal_iterating_mode;
+        offset = 3;
+
+    }
+
+    rapidcsv::Document doc(argv[4+offset]);
+
+
     PENALTY_MAP penalty;
     std::vector<char> firstchar = doc.GetColumn<char>(0);
     std::vector<char> secondchar = doc.GetColumn<char>(1);
@@ -240,34 +327,37 @@ int main(int argc, char* argv[]) {
         penalty[std::make_tuple(firstchar[i], secondchar[i])] = penalty_number[i];
     } 
 
-    if (global_local_affine == "affine") {
-        std::istringstream gap_open_ss(argv[5]);
+
+
+    if (global_local_affine == "affine"){
+        std::istringstream gap_open_ss(argv[5+offset]);
+
+
         long gap_open;
         if (!(gap_open_ss >> gap_open)) {
-            std::cerr << "Invalid number: " << argv[5] << '\n';
-            Kokkos::finalize(); // Finalize Kokkos
+
+            std::cerr << "Invalid number: " << argv[5+offset] << '\n';
             return 1;
         } else if (!gap_open_ss.eof()) {
-            std::cerr << "Trailing characters after number: " << argv[5] << '\n';
-            Kokkos::finalize(); // Finalize Kokkos
+            std::cerr << "Trailing characters after number: " << argv[5+offset] << '\n';
             return 1;
         }
 
-        std::istringstream gap_extension_ss(argv[6]);
+        std::istringstream gap_extension_ss(argv[6+offset]);
+
         long gap_extension;
         if (!(gap_extension_ss >> gap_extension)) {
-            std::cerr << "Invalid number: " << argv[6] << '\n';
-            Kokkos::finalize(); // Finalize Kokkos
+            std::cerr << "Invalid number: " << argv[6+offset] << '\n';
             return 1;
         } else if (!gap_extension_ss.eof()) {
-            std::cerr << "Trailing characters after number: " << argv[6] << '\n';
-            Kokkos::finalize(); // Finalize Kokkos
+            std::cerr << "Trailing characters after number: " << argv[6+offset] << '\n';
             return 1;
         }
 
-        affine(x, y, iterating_mode, penalty, gap_open, gap_extension);
-    } else {
-        global_local(x, y, iterating_mode, global_local_affine == "global", penalty);
+        affine(x,y,iterating_mode, penalty,gap_open, gap_extension, block_size);
+
+    } else{
+        global_local(x,y,iterating_mode,global_local_affine == "global", penalty, block_size);
     }
 
     Kokkos::finalize(); // Finalize Kokkos
