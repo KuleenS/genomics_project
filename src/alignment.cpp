@@ -103,7 +103,7 @@ void affine(std::string x, std::string y, int iterating_mode, PENALTY_MAP& penal
 
 
 
-void global_local(std::string x, std::string y, int iterating_mode, bool global, PENALTY_MAP penalty){
+void global_local(std::string x, std::string y, int iterating_mode, bool global, PENALTY_MAP penalty, int block_size){
     long int (*dp_step)(DP_TABLE, char, char, int, int, PENALTY_MAP);
 
     if (!global) {
@@ -146,10 +146,10 @@ void global_local(std::string x, std::string y, int iterating_mode, bool global,
             int i = std::get<0>(iter.get_location());
             int j = std::get<1>(iter.get_location());
 
-            dp[i+1][j+1] = dp_step(dp, x[i], y[j], i+1, j+1, penalty);
+            dp(i+1,j+1) = dp_step(dp, x[i], y[j], i+1, j+1, penalty);
 
             if (!global) {
-                best_item = std::max(best_item, dp[i+1][j+1]);
+                Kokkos::atomic_max(&best_item(), dp(i+1, j+1));
             }
         }
     } else {
