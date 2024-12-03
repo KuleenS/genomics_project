@@ -7,7 +7,7 @@ import pandas as pd
 from data_gen import generate_test_strings, generate_genomic_strings
 
 # Define paths and parameters
-base_length = 1000  # Starting length of the test strings
+base_length = 500  # Starting length of the test strings
 num_changes = 10  # Number of insertions/deletions/substitutions
 num_tests = 6  # Number of test string pairs to generate - 1
 num_pairs = 1
@@ -78,12 +78,17 @@ alignment_methods = [
 
 # Run each method on each input file and record runtime
 results = []
+massif_outputs = []
 for method in alignment_methods:
     for input_file in input_files:
-        start_time = time.time()
+        massif_outfile = f"massif_{method['name']}_{os.path.basename(input_file)}.out"
+        massif_outputs.append(massif_outfile)
         command = method["command"](input_file)
+        valgrind_command = f"valgrind --tool=massif --massif-out-file={massif_outfile} {command}"
+
+        start_time = time.time()
         try:
-            subprocess.run(command, shell=True, check=True)
+            subprocess.run(valgrind_command, shell=True, check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error running {method['name']} on {input_file}: {e}")
             continue
@@ -94,6 +99,14 @@ for method in alignment_methods:
             "runtime": runtime
         })
         print(f"{method['name']} on {input_file} completed in {runtime:.4f} seconds")
+
+# Analyze Massif output
+for massif_file in massif_outputs:
+    if os.path.exists(massif_file):
+        print(f"Massif output written to {massif_file}")
+    else:
+        print(f"Massif output for {massif_file} was not generated. Check Valgrind execution.")
+
 
 # Save results to CSV
 output_csv = "runtime_results_parallel.csv"
