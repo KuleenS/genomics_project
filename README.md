@@ -61,8 +61,15 @@ For Local/Global Alignment
 ```
 
 ### Block Based Global/Local Alignment
-WIP
 
+For Affine
+```
+./build/alignment <input_file> affine 3 <internal_iterating_mode> <block_iterating_mode> <block_size> <penalty_function_csv> <gap_open> <gap_extension>
+```
+For Local/Global Alignment
+```
+./build/alignment <input_file> <global|local> 3 <internal_iterating_mode> <block_iterating_mode> <block_size> <penalty_function_csv>
+```
 ### Four Russians Based Edit Distance
 ```
 ./build/hirschberg <input_file> <penalty_function_csv>

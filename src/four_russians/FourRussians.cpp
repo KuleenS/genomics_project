@@ -3,6 +3,7 @@
  */
 
 #include "FourRussians.h"
+#include <omp.h> // Include OpenMP header for parallelization
 
 FourRussians::FourRussians(string X, string Y, int tValue) {
   this->tValue = tValue;
@@ -48,9 +49,12 @@ void FourRussians::generate(int i, int tValue, vector<int>& counters) {
 
     Block b = Block(tValue, topS, leftS, topO, leftO);
 
-    blocks[hashed] = b;
-    downOffsets[hashed] = b.calcDownOffsets(tValue);
-    rightOffsets[hashed] = b.calcRightOffsets(tValue);
+    #pragma omp critical
+    {
+      blocks[hashed] = b;
+      downOffsets[hashed] = b.calcDownOffsets(tValue);
+      rightOffsets[hashed] = b.calcRightOffsets(tValue);
+    }
 
     delete[] topO;
     delete[] leftO;
@@ -63,11 +67,7 @@ void FourRussians::generate(int i, int tValue, vector<int>& counters) {
     int k = generate_letters ? 4 : 3;
 
     for (int l = 0; l < k; ++l) {
-      if (generate_letters) {
-        counters[i] = l;
-      } else {
-        counters[i] = l;
-      }
+      counters[i] = l;
       generate(i + 1, tValue, counters);
     }
   }
@@ -86,57 +86,44 @@ int** FourRussians::calculateEditMatrix() {
 
   getsubArrays();
 
-  int** matrix = NULL;
-  matrix = new int*[lenB / tValue];
-
+  int** matrix = new int*[lenB / tValue];
   int lenb = lenB / tValue;
   int lena = lenA / tValue;
-  for (int h = 0; h < lenb; h++) matrix[h] = new int[lena];
 
-  for (int i = 0; i < lenb; i++) {
+  #pragma omp parallel for
+  for (int h = 0; h < lenb; h++) {
+    matrix[h] = new int[lena];
     for (int j = 0; j < lena; j++) {
-      matrix[i][j] = 0;
+      matrix[h][j] = 0;
     }
   }
 
-  int cnter = 0;
-  double duration = 0;
-  std::clock_t start;
-  start = std::clock();
   string sL, sT;
   for (int k = 0; k < tValue; k++) {
     sT = sT + "1";
     sL = sL + "1";
   }
+
   int leftS = substringB[0];
   int topS = substringA[0];
 
   matrix[0][0] = hash.toHash(sT, sL, topS, leftS);
   for (int k = 1; k < lena; k++) {
     topS = substringA[k];
-    matrix[0][k] =
-        hash.toHash(sT, rightOffsets[matrix[0][k - 1]], topS, leftS);
+    matrix[0][k] = hash.toHash(sT, rightOffsets[matrix[0][k - 1]], topS, leftS);
   }
   int initialtopS = substringA[0];
 
+  #pragma omp parallel for
   for (int i = 1; i < lenb; i++) {
     leftS = substringB[i];
 
-    matrix[i][0] =
-        hash.toHash(downOffsets[matrix[i - 1][0]], sL, initialtopS, leftS);
-    if (cnter % 1000 == 0) {
-      cout << cnter << endl;
-      duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
-      start = std::clock();
-      std::cout << "Computation of 1000 blocks takes time:" << duration
-                << " s \n";
-    }
-    cnter++;
+    matrix[i][0] = hash.toHash(downOffsets[matrix[i - 1][0]], sL, initialtopS, leftS);
 
     for (int j = 1; j < lena; j++) {
       matrix[i][j] = hash.mergeHashes(downOffsets[matrix[i - 1][j]],
-                                       rightOffsets[matrix[i][j - 1]],
-                                       substringA[j], leftS);
+                                      rightOffsets[matrix[i][j - 1]],
+                                      substringA[j], leftS);
     }
   }
   return matrix;
