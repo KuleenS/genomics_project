@@ -8,7 +8,7 @@ file(GLOB FOUR_RUSSIANS
      "src/four_russians/*.cpp"
 )
 
-add_executable(alignment src/alignment.cpp src/algos.cpp src/algos.hpp)
+add_executable(alignment src/alignment.cpp src/algos.cpp src/algos.hpp src/block_based_alignment.hpp)
 add_executable(hirschberg src/hirschberg.cpp)
 add_executable(four_russians src/four_russians.cpp ${FOUR_RUSSIANS})
 
