@@ -7,14 +7,14 @@ import pandas as pd
 from data_gen import generate_test_strings, generate_genomic_strings
 
 # Define paths and parameters
-base_length = 1000  # Starting length of the test strings
+base_length = 500  # Starting length of the test strings
 num_changes = 10  # Number of insertions/deletions/substitutions
 num_tests = 6  # Number of test string pairs to generate - 1
 num_pairs = 1
 penalty_file = "penalty.csv"  # Path to penalty function CSV
 
-lengths = [(base_length * i) for i in range(1, num_tests)]
-changes = [(num_changes * 2 * i) for i in range(1, num_tests)]
+lengths = [(base_length * (2 **i)) for i in range(0, num_tests)]
+changes = [((num_changes * 2 * i) + 10) for i in range(0, num_tests)]
 
 input_files = []
 for i, length in enumerate(lengths):
@@ -70,11 +70,12 @@ alignment_methods = [
     },
 ]
 
-"""{
+"""
+{
         "name": "Four Russians",
         "command": lambda input_file: f"./build/four_russians {input_file} {10}"
-    }"""
-
+    }
+"""
 
 # Run each method on each input file and record runtime
 results = []
@@ -96,7 +97,7 @@ for method in alignment_methods:
         print(f"{method['name']} on {input_file} completed in {runtime:.4f} seconds")
 
 # Save results to CSV
-output_csv = "runtime_results_parallel.csv"
+output_csv = "runtime_results_not_parallel.csv"
 with open(output_csv, 'w', newline='') as csvfile:
     fieldnames = ["method", "input_file", "runtime"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
