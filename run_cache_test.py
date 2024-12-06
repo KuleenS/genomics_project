@@ -110,8 +110,8 @@ for method in alignment_methods:
             match = re.search(r"D1  misses:\s+([\d,]+)", line)
             if match:
                 L1_misses = int(match.group(1).replace(",", ""))
+                break
         print("L1 Misses: ",L1_misses)
-        break
         
         results.append({
             "method": method["name"],
