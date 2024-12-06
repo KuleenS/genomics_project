@@ -1,5 +1,6 @@
 import os
 import time
+import re
 import subprocess
 import csv
 import matplotlib.pyplot as plt
@@ -7,9 +8,9 @@ import pandas as pd
 from data_gen import generate_test_strings, generate_genomic_strings
 
 # Define paths and parameters
-base_length = 125  # Starting length of the test strings
-num_changes = 10  # Number of insertions/deletions/substitutions
-num_tests = 5  # Number of test string pairs to generate - 1
+base_length = 10  # Starting length of the test strings
+num_changes = 8  # Number of insertions/deletions/substitutions
+num_tests = 6  # Number of test string pairs to generate - 1
 num_pairs = 1
 penalty_file = "penalty.csv"  # Path to penalty function CSV
 
@@ -68,10 +69,10 @@ alignment_methods = [
         "name": "Local_2",
         "command": lambda input_file, mode="local": f"./build/alignment {input_file} {mode} 2 {penalty_file}"
     },
-    {
-        "name": "Four Russians",
-        "command": lambda input_file: f"./build/four_russians {input_file} {3}"
-    }
+    # {
+    #     "name": "Four Russians",
+    #     "command": lambda input_file: f"./build/four_russians {input_file} {3}"
+    # }
 ]
 
 cachegrind_dir = "cachegrind_outputs"
@@ -88,11 +89,12 @@ for method in alignment_methods:
         output_file = os.path.join(cachegrind_dir, f"cachegrind.out.{method['name']}")
         
         # Full Cachegrind command
-        command = f"valgrind --tool=cachegrind --cachegrind-out-file={output_file} {command_string}"
+        command = f"valgrind --tool=cachegrind --cache-sim=yes --cachegrind-out-file={output_file} {command_string}"
         
         try:
             # Run the command
-            subprocess.run(command, shell=True, check=True)
+            process = subprocess.run(command, shell=True, check=True, stderr=subprocess.PIPE, text=True)
+            valgrind_output = process.stderr
         except subprocess.CalledProcessError as e:
             print(f"Error running {method['name']} on {input_file}: {e}")
             continue
@@ -101,11 +103,15 @@ for method in alignment_methods:
         annotate_command = f"cg_annotate {output_file}"
         annotate_output = subprocess.check_output(annotate_command, shell=True).decode()
 
+        # print(annotate_output)
+
         L1_misses = 0
-        for line in annotate_output.splitlines():
-            if "D1  misses" in line:
-                L1_misses = int(line.split(":")[1].strip().replace(",", ""))
-                break
+        for line in valgrind_output.splitlines():
+            match = re.search(r"D1  misses:\s+([\d,]+)", line)
+            if match:
+                L1_misses = int(match.group(1).replace(",", ""))
+        print("L1 Misses: ",L1_misses)
+        break
         
         results.append({
             "method": method["name"],
@@ -117,7 +123,7 @@ for method in alignment_methods:
 # Save results to CSV
 csv_file = "cachegrind_comparison_parallel.csv"
 with open(csv_file, 'w', newline='') as csvfile:
-    fieldnames = ["name", "filesize", "D1_misses"]
+    fieldnames = ["method", "input_file", "L1_misses"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     for result in results:
