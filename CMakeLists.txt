@@ -16,7 +16,7 @@ target_include_directories(alignment PRIVATE ${RAPIDCSV_INCLUDE_DIRS})
 target_include_directories(hirschberg PRIVATE ${RAPIDCSV_INCLUDE_DIRS})
 
 # Add the Kokkos submodule
-set(Kokkos_ENABLE_OPENMP OFF)    
+set(Kokkos_ENABLE_OPENMP ON)    
 set(Kokkos_ENABLE_CUDA OFF)      
 add_subdirectory(external/kokkos)
 # Link Kokkos to your target

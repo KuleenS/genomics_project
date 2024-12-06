@@ -49,7 +49,8 @@ void FourRussians::generate(int i, int tValue, vector<int>& counters) {
 
     Block b = Block(tValue, topS, leftS, topO, leftO);
 
-    #pragma omp critical
+
+    //#pragma omp critical
     {
       blocks[hashed] = b;
       downOffsets[hashed] = b.calcDownOffsets(tValue);
@@ -90,7 +91,7 @@ int** FourRussians::calculateEditMatrix() {
   int lenb = lenB / tValue;
   int lena = lenA / tValue;
 
-  #pragma omp parallel for
+ //#pragma omp parallel for
   for (int h = 0; h < lenb; h++) {
     matrix[h] = new int[lena];
     for (int j = 0; j < lena; j++) {
@@ -114,7 +115,7 @@ int** FourRussians::calculateEditMatrix() {
   }
   int initialtopS = substringA[0];
 
-  #pragma omp parallel for
+  // parallel for
   for (int i = 1; i < lenb; i++) {
     leftS = substringB[i];
 

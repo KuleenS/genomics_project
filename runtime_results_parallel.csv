@@ -1,61 +1,31 @@
 method,input_file,runtime
-Hirschberg,test_length_500_file_1.txt,0.6876652240753174
-Hirschberg,test_length_1000_file_1.txt,3.0671424865722656
-Hirschberg,test_length_2000_file_1.txt,9.103216648101807
-Hirschberg,test_length_4000_file_1.txt,28.546309232711792
-Hirschberg,test_length_8000_file_1.txt,67.92189073562622
-Hirschberg,test_length_16000_file_1.txt,163.7547070980072
-Affine_0,test_length_500_file_1.txt,0.2538149356842041
-Affine_0,test_length_1000_file_1.txt,0.7224175930023193
-Affine_0,test_length_2000_file_1.txt,2.335822343826294
-Affine_0,test_length_4000_file_1.txt,8.785593509674072
-Affine_0,test_length_8000_file_1.txt,35.4226279258728
-Affine_0,test_length_16000_file_1.txt,139.3245813846588
-Affine_1,test_length_500_file_1.txt,0.18680644035339355
-Affine_1,test_length_1000_file_1.txt,0.6370434761047363
-Affine_1,test_length_2000_file_1.txt,2.2198431491851807
-Affine_1,test_length_4000_file_1.txt,8.391103506088257
-Affine_1,test_length_8000_file_1.txt,35.84617781639099
-Affine_1,test_length_16000_file_1.txt,151.3728084564209
-Affine_2,test_length_500_file_1.txt,1.8459031581878662
-Affine_2,test_length_1000_file_1.txt,8.733200550079346
-Affine_2,test_length_2000_file_1.txt,12.385502576828003
-Affine_2,test_length_4000_file_1.txt,28.72727656364441
-Affine_2,test_length_8000_file_1.txt,87.16654658317566
-Affine_2,test_length_16000_file_1.txt,364.7662661075592
-Global_0,test_length_500_file_1.txt,0.2706141471862793
-Global_0,test_length_1000_file_1.txt,0.8087465763092041
-Global_0,test_length_2000_file_1.txt,2.6641697883605957
-Global_0,test_length_4000_file_1.txt,11.044882535934448
-Global_0,test_length_8000_file_1.txt,92.5450439453125
-Global_0,test_length_16000_file_1.txt,301.67988896369934
-Global_1,test_length_500_file_1.txt,0.7293198108673096
-Global_1,test_length_1000_file_1.txt,2.2002906799316406
-Global_1,test_length_2000_file_1.txt,6.891156911849976
-Global_1,test_length_4000_file_1.txt,25.45887565612793
-Global_1,test_length_8000_file_1.txt,94.22100734710693
-Global_1,test_length_16000_file_1.txt,282.91992807388306
-Global_2,test_length_500_file_1.txt,23.011702060699463
-Global_2,test_length_1000_file_1.txt,31.50566792488098
-Global_2,test_length_2000_file_1.txt,21.0839900970459
-Global_2,test_length_4000_file_1.txt,44.09348392486572
-Global_2,test_length_8000_file_1.txt,104.29159808158875
-Global_2,test_length_16000_file_1.txt,409.8360683917999
-Local_0,test_length_500_file_1.txt,0.8029446601867676
-Local_0,test_length_1000_file_1.txt,1.7896490097045898
-Local_0,test_length_2000_file_1.txt,6.274688482284546
-Local_0,test_length_4000_file_1.txt,24.204933166503906
-Local_0,test_length_8000_file_1.txt,70.26488924026489
-Local_0,test_length_16000_file_1.txt,154.29880952835083
-Local_1,test_length_500_file_1.txt,0.18004608154296875
-Local_1,test_length_1000_file_1.txt,0.8757777214050293
-Local_1,test_length_2000_file_1.txt,2.5349926948547363
-Local_1,test_length_4000_file_1.txt,10.509036540985107
-Local_1,test_length_8000_file_1.txt,39.275938987731934
-Local_1,test_length_16000_file_1.txt,165.40648460388184
-Local_2,test_length_500_file_1.txt,1.2744038105010986
-Local_2,test_length_1000_file_1.txt,1.902717113494873
-Local_2,test_length_2000_file_1.txt,8.514982223510742
-Local_2,test_length_4000_file_1.txt,27.689886331558228
-Local_2,test_length_8000_file_1.txt,95.58233499526978
-Local_2,test_length_16000_file_1.txt,540.7954351902008
+Four Russians,test_length_500_file_1.txt,1.324211835861206
+Four Russians,test_length_500_file_2.txt,1.1586792469024658
+Four Russians,test_length_500_file_3.txt,1.246274709701538
+Four Russians,test_length_500_file_4.txt,1.3997211456298828
+Four Russians,test_length_500_file_5.txt,1.401327133178711
+Four Russians,test_length_1000_file_1.txt,1.2795038223266602
+Four Russians,test_length_1000_file_2.txt,1.3404796123504639
+Four Russians,test_length_1000_file_3.txt,1.2839770317077637
+Four Russians,test_length_1000_file_4.txt,1.4337027072906494
+Four Russians,test_length_1000_file_5.txt,1.1968562602996826
+Four Russians,test_length_2000_file_1.txt,1.2259535789489746
+Four Russians,test_length_2000_file_2.txt,1.1807799339294434
+Four Russians,test_length_2000_file_3.txt,1.27679443359375
+Four Russians,test_length_2000_file_4.txt,1.157742977142334
+Four Russians,test_length_2000_file_5.txt,1.3486404418945312
+Four Russians,test_length_4000_file_1.txt,1.2958180904388428
+Four Russians,test_length_4000_file_2.txt,1.3628051280975342
+Four Russians,test_length_4000_file_3.txt,1.2297301292419434
+Four Russians,test_length_4000_file_4.txt,1.226555585861206
+Four Russians,test_length_4000_file_5.txt,1.258423089981079
+Four Russians,test_length_8000_file_1.txt,1.477376937866211
+Four Russians,test_length_8000_file_2.txt,1.4504501819610596
+Four Russians,test_length_8000_file_3.txt,1.5389692783355713
+Four Russians,test_length_8000_file_4.txt,1.4304275512695312
+Four Russians,test_length_8000_file_5.txt,1.5291295051574707
+Four Russians,test_length_16000_file_1.txt,2.0290329456329346
+Four Russians,test_length_16000_file_2.txt,2.0746376514434814
+Four Russians,test_length_16000_file_3.txt,2.16035532951355
+Four Russians,test_length_16000_file_4.txt,2.0393178462982178
+Four Russians,test_length_16000_file_5.txt,2.0943384170532227
