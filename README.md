@@ -74,3 +74,13 @@ For Local/Global Alignment
 ```
 ./build/hirschberg <input_file> <penalty_function_csv>
 ```
+
+## Benchmarking
+
+Use the data_gen.py script to generate the input data
+
+Use run_cache_test.py script to generate the data for cache comparisons
+
+Use run_data_time.py script to get the timing data
+
+Use make_graphs_cache.py and make_graphs_time.py to generate the graphs seen in the paper
