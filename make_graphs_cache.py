@@ -15,9 +15,9 @@ def fitting_equation(x,a,b,c):
 
 # Load results from CSV
 data_parallel = pd.read_csv('cachegrind_comparison_parallel.csv', skiprows=1, names=['test_type','test_length_file', 'cache'])
-data_not_parallel = pd.read_csv('cachegrind_comparison_non_parallel.csv', skiprows=1, names=['test_type','test_length_file', 'cache'])
+data_not_parallel = pd.read_csv('cachegrind_comparison_not_parallel.csv', skiprows=1, names=['test_type','test_length_file', 'cache'])
 
-method_types = ['Hirschberg','Local', 'Global', 'Affine','Four Russians'] # 
+method_types = ['Hirschberg','Local', 'Global', 'Affine','FourRussians']
 colors = list(mcolors.TABLEAU_COLORS.values())
 
 names = {
@@ -30,7 +30,7 @@ results = {}
 
 for method in method_types:
     fig = plt.figure(figsize=(10, 6))
-    if method != 'Hirschberg' and method != 'Four Russians':
+    if method != 'Hirschberg' and method != 'FourRussians':
         unique_modes = {0, 1, 2}
         for idx, mode in enumerate(unique_modes):
             color_base = colors[idx % len(colors)]  # Rotate through colors if there are more modes than colors
@@ -50,7 +50,7 @@ for method in method_types:
             popt_nonparallel, pcov_nonparallel = curve_fit(fitting_equation, method_data_not_parallel['test_length_file'], method_data_not_parallel['cache'],  maxfev=20000)
             
             results[f'{method}{mode}'] = (popt_parallel,popt_nonparallel)
-            length = np.linspace(0, 16000, 100)
+            length = np.linspace(0, 350, 100)
             parallel_fit = fitting_equation(length, *popt_parallel)
             nonparallel_fit = fitting_equation(length, *popt_nonparallel)
 
@@ -64,7 +64,7 @@ for method in method_types:
         plt.ylabel("L1 misses")
         plt.legend()
         plt.savefig(f'cache_plot_{method}.png', format='png', dpi=300, bbox_inches = 'tight')
-    elif method == 'Four Russians':
+    elif method == 'FourRussians':
         color_base = colors[3 % len(colors)]
         fig = plt.figure(figsize=(10, 6))
         method_data_parallel = data_parallel[data_parallel['test_type'] == method]
@@ -72,14 +72,16 @@ for method in method_types:
         # Extract input lengths from file names
         method_data_parallel['test_length_file'] = method_data_parallel['test_length_file'].str.extract(r'(\d+)').astype(int)
         #method_data_not_parallel['test_length_file'] = method_data_not_parallel['test_length_file'].str.extract(r'(\d+)').astype(int)
-    
+        
+        method_data_parallel = method_data_parallel.sort_values(by='test_length_file')
+            
         # Sort by input length
         popt_parallel, pcov_parallel = curve_fit(fitting_equation, method_data_parallel['test_length_file'], method_data_parallel['cache'], maxfev=20000)
         #popt_nonparallel, pcov_nonparallel = curve_fit(fitting_equation, method_data_not_parallel['test_length_file'], method_data_not_parallel['cache'],  maxfev=20000)
             
         results[method] = (popt_parallel)
 
-        length = np.linspace(0, 16000, 100)
+        length = np.linspace(0, 350, 100)
         parallel_fit = fitting_equation(length, *popt_parallel)
 
         plt.plot(method_data_parallel['test_length_file'], method_data_parallel['cache'], 'o', color=color_base)
@@ -87,6 +89,7 @@ for method in method_types:
 
         plt.xlabel("Number Bases")
         plt.ylabel("L1 misses")
+        plt.ylim(6000000, 15000000)
         plt.legend()
         plt.savefig(f'cache_plot_{method}.png', format='png', dpi=300, bbox_inches = 'tight')
     else:
@@ -104,7 +107,7 @@ for method in method_types:
             
         results[method] = (popt_parallel,popt_nonparallel)
 
-        length = np.linspace(0, 16000, 100)
+        length = np.linspace(0, 350, 100)
         parallel_fit = fitting_equation(length, *popt_parallel)
         nonparallel_fit = fitting_equation(length, *popt_nonparallel)
 

@@ -17,7 +17,7 @@ def fitting_equation(x,a,b,c):
 data_parallel = pd.read_csv('runtime_results_parallel.csv', skiprows=1, names=['test_type','test_length_file', 'time'])
 data_not_parallel = pd.read_csv('runtime_results_not_parallel.csv', skiprows=1, names=['test_type','test_length_file', 'time'])
 
-method_types = ['Four Russians'] #'Hirschberg','Local', 'Global', 'Affine', 
+method_types = ['Hirschberg','Local', 'Global', 'Affine','Four Russians'] # 
 colors = list(mcolors.TABLEAU_COLORS.values())
 
 names = {

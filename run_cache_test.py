@@ -69,10 +69,10 @@ alignment_methods = [
         "name": "Local_2",
         "command": lambda input_file, mode="local": f"./build/alignment {input_file} {mode} 2 {penalty_file}"
     },
-    # {
-    #     "name": "Four Russians",
-    #     "command": lambda input_file: f"./build/four_russians {input_file} {3}"
-    # }
+    {     
+        "name": "FourRussians",
+        "command": lambda input_file: f"./build/four_russians {input_file} {3}"
+    }
 ]
 
 cachegrind_dir = "cachegrind_outputs"
